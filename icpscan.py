@@ -16,7 +16,7 @@ ICP_PATTERN_icp_jucha = re.compile(r'"mc":"(.*?)"')
 
 executed_domains = set()
 SESSION = requests.Session()
-cookie = None  # 全局变量
+cookie = None
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -64,24 +64,20 @@ def fofa(b64, ip):
     except requests.exceptions.RequestException as e:
         print(f"FOFA请求失败: {e}\t\t"+ip)
         return [], ip
-
-
+        
 def icp(domain, ip):
     dot_count = domain.count(".")
-    max_retries = max(0, dot_count - 1)  # 最大重试次数为点的数量减一，最小为0
+    max_retries = max(0, dot_count - 1)
     current_retry = 0
-    original_domain = domain  # 备份原始域名
+    original_domain = domain
 
     while current_retry <= max_retries:
         icpba = None
         response_text_beianx = None
-
         if original_domain in executed_domains: 
             return
-
         if cookie:
             response_text_beianx = icp_beianx(original_domain)
-
         if response_text_beianx:
             icpba = icp_ba_beianx(response_text_beianx)
         else:
@@ -92,9 +88,7 @@ def icp(domain, ip):
                 response_text_jucha = icp_jucha(original_domain)
                 if response_text_jucha:
                     icpba = icp_ba_jucha(response_text_jucha)
-
-        executed_domains.add(original_domain)  # 使用备份的域名进行添加
-
+        executed_domains.add(original_domain)
         if icpba:
             return [icpba, original_domain, ip]
         else:
@@ -104,19 +98,13 @@ def icp(domain, ip):
                 current_retry += 1
             else:
                 break
-
     return [icpba, domain, ip] if icpba is not None else [None, domain, ip]
-
-
-
-
-
+    
 def process_url(url):
     iplist, dmlist = ipdm(url)
     results = []
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # 处理 FOFA 结果
         fofa_futures = [executor.submit(fofa, bas64(ip), ip) for ip in iplist]
         for fofa_future in concurrent.futures.as_completed(fofa_futures):
             fofa_results, ip_result = fofa_future.result()
@@ -125,7 +113,6 @@ def process_url(url):
                 if jg:
                     results.extend(jg)
 
-        # 处理域名结果
         domain_futures = [executor.submit(icp, domain, "") for domain in dmlist]
         for domain_future in concurrent.futures.as_completed(domain_futures):
             jg = domain_future.result()
