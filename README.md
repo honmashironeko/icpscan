@@ -15,7 +15,7 @@ pip install -r requirements.txt安装必须的环境
 
 执行  python icpscan.py -f 指定txt文件 -c 指定cookie
 
-由于v0.5版本采用了https://www.beianx.cn/的备案查询，因此需要获取一下他的cookie，但是非必须项，这个站点更加精准而已。
+由于v0.5版本采用了https://www.beianx.cn/  的备案查询，因此需要获取一下他的cookie，但是非必须项，这个站点更加精准而已。
 请提供acw_sc__v2=后面的参数到-c中  例如 -c 657c05dbcac**941933******3b6d6891c511d96
 ![image](https://github.com/honmashironeko/icpscan/assets/139044047/31100981-467b-442c-943e-8c05f7e327c9)
 
