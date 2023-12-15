@@ -3,6 +3,7 @@
 ![image](https://github.com/honmashironeko/icpscan/assets/139044047/9b74a394-9daf-4834-b4aa-db2ff276e5ac)
 
 开发本工具的主旨是批量对ip、域名资产查询备案信息，为大规模扫描提供帮助。
+当前已支持循环测试域名，例如api.qq.baidu.com，可依次查询api.qq.baidu.com、qq.baidu.com、baidu.com的备案信息，为避免遗漏备案！
 该工具无需配置账号，到手即用，白嫖查询！
 
 如果对本工具有建议或BUG反馈，请关注微信公众号：樱花庄的本间白猫，加入微信群反馈。
