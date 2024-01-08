@@ -10,7 +10,8 @@ pip install -r requirements.txt安装必须的环境
 
 [访问网站下载驱动](https://googlechromelabs.github.io/chrome-for-testing/)
 
-![image-20240108165341472](./assets/image-20240108165341472.png)
+![image](https://github.com/honmashironeko/icpscan/assets/139044047/18aac337-1cdf-4f5b-b87b-78497f6c476c)
+
 
 执行脚本方式：`python icpscan.py -f 文件名`  
 
