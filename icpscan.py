@@ -5,7 +5,13 @@ import base64
 import argparse
 import openpyxl
 import urllib3
-import concurrent.futures
+import os
+import asyncio
+import aiohttp
+import aiofiles
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from concurrent.futures import ThreadPoolExecutor
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -14,9 +20,8 @@ ICP_PATTERN_icp_beianx = re.compile(r'<a href="/company/\d+">(.*?)</a>')
 ICP_PATTERN_icplishi = re.compile(r'<td><a href="/company/.*?/" target="_blank">(.*?)</a></td>')
 ICP_PATTERN_icp_jucha = re.compile(r'"mc":"(.*?)"')
 
-executed_domains = set()
-SESSION = requests.Session()
 cookie = None
+executed_domains = set()
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -28,18 +33,8 @@ HEADERS = {
 }
 HEADERSF = {
     'Connection': 'keep-alive',
-    'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-User': '?1',
-    'Sec-Fetch-Dest': 'document',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'zh-CN,zh;q=0.9'
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
 }
 
 HEADERS1 = {
@@ -48,111 +43,104 @@ HEADERS1 = {
     "Content-Length": "72"
 }
 
-
-def fofa(b64, ip):
+semaphore = asyncio.Semaphore(1)
+async def async_fofa(session, b64, ip):
     url = f"https://fofa.info/result?qbase64={b64}"
     try:
-        with SESSION.get(url, headers=HEADERSF, timeout=5) as response:
-            response.raise_for_status()
-            if response.status_code == 200:
-                #print(f"{ip} FOFA请求发送成功！")
-                links = extract_links(response.text)
+        async with semaphore:
+            response = await session.get(url, headers=HEADERSF, timeout=10, ssl=False)
+            if response.status == 200:
+                links = extract_links(await response.text())
                 results = extract_domains(links)
                 return results, ip
             else:
-                print(f"FOFA请求失败！错误码：{response.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"FOFA请求失败: {e}\t\t"+ip)
+                print(f"FOFA请求失败！错误码：{response.status}" + ip)
+                return [], ip
+    except (requests.exceptions.RequestException, asyncio.TimeoutError) as e:
+        print(f"FOFA请求失败: {e}\t\t" + ip)
         return [], ip
-        
-def icp(domain, ip):
-    dot_count = domain.count(".")
-    max_retries = max(0, dot_count - 1)
-    current_retry = 0
-    original_domain = domain
 
-    while current_retry <= max_retries:
-        icpba = None
-        response_text_beianx = None
-        if original_domain in executed_domains: 
+async def async_icp(session, domain, ip):
+    domains_list = []
+    domains_list.append(domain)
+    parts = domain.split(".")
+    while len(parts) > 2:
+        parts.pop(0)
+        partial_domain = ".".join(parts)
+        domains_list.append(partial_domain)
+    icpba = None
+    response_text = None
+    for ym in domains_list:
+        if ym in executed_domains:
             return
+        executed_domains.add(ym)
+        print(ym + "\t开始查询")
         if cookie:
-            response_text_beianx = icp_beianx(original_domain)
-        if response_text_beianx:
-            icpba = icp_ba_beianx(response_text_beianx)
-        else:
-            response_text_icplishi = icp_icplishi(original_domain)
-            if response_text_icplishi:
-                icpba = icp_ba_icplishi(response_text_icplishi)
-            else:
-                response_text_jucha = icp_jucha(original_domain)
-                if response_text_jucha:
-                    icpba = icp_ba_jucha(response_text_jucha)
-        executed_domains.add(original_domain)
-        if icpba:
-            return [icpba, original_domain, ip]
-        else:
-            index_of_dot = original_domain.find(".")
-            if index_of_dot != -1:
-                original_domain = original_domain[index_of_dot + 1:]
-                current_retry += 1
-            else:
-                break
+            response_text = await icp_beianx(ym, session)       
+        if response_text:
+            icpba = icp_ba_beianx(response_text)
+        if icpba is not None:
+            return [icpba, domain, ip]
+
+    if icpba is None:
+        for ym in domains_list:
+            response_text = await icp_icplishi(ym, session)
+            if response_text:
+                icpba = icp_ba_icplishi(response_text)
+            if icpba is not None:
+                return [icpba, domain, ip]
+
+    if icpba is None:
+        for ym in domains_list:
+            try:
+                response_text = await asyncio.wait_for(icp_jucha(ym, session), timeout=5)
+            except asyncio.TimeoutError:
+                continue
+            if response_text:
+                icpba = icp_ba_jucha(response_text)
+            if icpba is not None:
+                return [icpba, domain, ip]
+
     return [icpba, domain, ip] if icpba is not None else [None, domain, ip]
-    
-def process_url(url):
-    iplist, dmlist = ipdm(url)
-    results = []
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        fofa_futures = [executor.submit(fofa, bas64(ip), ip) for ip in iplist]
-        for fofa_future in concurrent.futures.as_completed(fofa_futures):
-            fofa_results, ip_result = fofa_future.result()
-            for fofadm in fofa_results:
-                jg = icp(fofadm, ip_result)
-                if jg:
-                    results.extend(jg)
-
-        domain_futures = [executor.submit(icp, domain, "") for domain in dmlist]
-        for domain_future in concurrent.futures.as_completed(domain_futures):
-            jg = domain_future.result()
-            if jg:
-                results.extend(jg)
-
-    return results
-
-def icp_beianx(domain):
+async def icp_beianx(domain, session):
+    global cookie
     url = f"https://www.beianx.cn/search/{domain}/"
-    HEADERSB = {"Cookie":"acw_sc__v2="+cookie}
+    HEADERSB = {"Cookie": "acw_sc__v2=" + cookie}
     try:
-        with requests.get(url, headers=HEADERSB, verify=False,timeout=5) as response:
+        async with session.get(url, headers=HEADERSB, verify_ssl=False, timeout=5) as response:
             response.raise_for_status()
-            if "0x4818" in response.text:
-                print("beianx提供的cookie无效，请检查")
+            if "0x4818" in await response.text():
+                print("重新获取cookie")
+                cookie = await beianx_cookie(session)
             else:
-                if "没有查询到记录" in response.text:
+                if "没有查询到记录" in await response.text():
                     return None
                 else:
-                    return response.text
+                    return await response.text()
     except requests.exceptions.RequestException as e:
         print(f"ICP请求失败: {e}")
         return None
 
-def icp_icplishi(domain):
+async def icp_icplishi(domain, session):
     url = f"https://icplishi.com/{domain}/"
     try:
-        with requests.get(url, timeout=5) as response:
+        async with session.get(url=url, timeout=3) as response:  
             response.raise_for_status()
-            if response.status_code == 200:
-                return response.text
+            if response.status == 200:
+                return await response.text()
             else:
-                print(f"ICP请求失败！错误码：{response.status_code}")
+                print(f"ICP请求失败！错误码：{response.status}")
                 return None
+    except asyncio.TimeoutError:
+        #print(f"ICP请求超时")
+        return None
     except requests.exceptions.RequestException as e:
-        #print(f"ICP请求失败: {e}")
+        print(f"ICP请求失败: {e}")
         return None
 
-def icp_jucha(domain):
+
+async def icp_jucha(domain, session):
     url = f"https://www.jucha.com/item/search"
     data_jucha = {
         'domain': domain,
@@ -162,20 +150,66 @@ def icp_jucha(domain):
         'is_hide_zonghe': 0,
         'gx': 0
     }
+    time.sleep(0.1)
     try:
-        with requests.post(url, headers=HEADERS1, data=data_jucha, verify=False, timeout=5) as response:
+        async with session.post(url, headers=HEADERS1, data=data_jucha, verify_ssl=False, timeout=5) as response:
             response.raise_for_status()
-            if response.status_code == 200:
-                return response.text
+            if response.status == 200:
+                return await response.text()
             else:
-                print(f"ICP请求失败！错误码：{response.status_code}")
+                print(f"ICP请求失败！错误码：{response.status}")
                 return None
     except requests.exceptions.RequestException as e:
         print(f"ICP请求失败: {e}")
         return None
 
-def extract_links(response_text):
-    return re.findall(FOFA_LINK_PATTERN, response_text)
+async def beianx_cookie(session):
+    url = "https://www.beianx.cn/search"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    chrome_driver_path = os.path.join(script_dir, "chromedriver.exe")
+    chrome_service = Service(executable_path=chrome_driver_path)
+    
+    driver = webdriver.Chrome(service=chrome_service)
+
+    driver.get(url)
+
+    cookies = driver.get_cookies()
+    
+    acw_sc__v2_value = None
+    for cookie in cookies:
+        if cookie['name'] == 'acw_sc__v2':
+            acw_sc__v2_value = cookie['value']
+            break
+    print(acw_sc__v2_value)
+    driver.quit()
+    return acw_sc__v2_value
+
+async def async_process_url(session, url):
+    iplist, dmlist = ipdm(url)
+    results = []
+    fofaym = {}
+
+    for ip in iplist:
+        b64 = bas64(ip)
+        fofa_results, ip_result = await async_fofa(session, b64, ip)
+        for fofadm in fofa_results:
+            fofaym[fofadm] = ip_result
+        print(ip + "\t存在>>" + str(len(fofaym)) + "<<个域名待测")
+    
+    fofa_tasks = [async_process_fofa_result(session, fofadm, ip_result) for fofadm, ip_result in fofaym.items()]
+    fofa_results = await asyncio.gather(*fofa_tasks)
+    results.extend(fofa_results)
+    
+    icp_tasks = [async_icp(session, domain, "") for domain in dmlist]
+    icp_results = await asyncio.gather(*icp_tasks)
+    results.extend([result for result in icp_results if result])
+    return results
+
+async def async_process_fofa_result(session, fofadm, ip_result):
+    jg = await async_icp(session, fofadm, ip_result)
+    if jg:
+        return jg
+    return []
 
 def icp_ba_beianx(response_text):
     results = re.findall(ICP_PATTERN_icp_beianx, response_text)
@@ -188,6 +222,9 @@ def icp_ba_icplishi(response_text):
 def icp_ba_jucha(response_text):
     results = re.findall(ICP_PATTERN_icp_jucha, response_text)
     return ' '.join(results) if results else None
+
+def extract_links(response_text):
+    return re.findall(FOFA_LINK_PATTERN, response_text)
 
 def extract_domains(links):
     domains = []
@@ -209,13 +246,16 @@ def ipdm(string):
     return re.findall(ip_pattern, string), re.findall(domain_pattern, string)
 
 def xlsx(results, sheet):
-    if results:
-        ba = results[0]
-        ym = results[1]
-        ip = results[2]
-        ba_str = str(ba) if ba is not None else " "
-        ip_str = ''.join(str(b) for b in ip) if ip and any(ip) else " "
-        sheet.append([ba_str, str(ym), ip_str])
+    for result in results:
+        if len(result) >= 3:
+            ba = result[0]
+            ym = result[1]
+            ip = result[2]
+            ba_str = str(ba) if ba is not None else " "
+            ip_str = ''.join(str(b) for b in ip) if ip and any(ip) else " "
+            sheet.append([ba_str, str(ym), ip_str])
+        else:
+            pass
 
 def create_workbook():
     workbook = openpyxl.Workbook()
@@ -225,23 +265,27 @@ def create_workbook():
     sheet['C1'] = 'IP地址'
     return workbook, sheet
 
-def process_file(file_path, sheet):
-    workbook, sheet = create_workbook()  # 修改此行
-    with open(file_path, 'r') as file:
-        urls = file.read().splitlines()
-        total_lines = len(urls)
+async def async_process_file(file_path, sheet, session):
+    async with aiofiles.open(file_path, 'r', encoding='utf-8') as file:
+        urls = await file.read()
+    urls = urls.splitlines()
+    tasks = [async_process_url(session, url) for url in urls]
+    all_results = await asyncio.gather(*tasks)
+    for results in all_results:
+        xlsx(results, sheet)
 
-        progress_bar = ProgressBar(total_lines)
-
-        for idx, url in enumerate(urls, start=1):
-            results = process_url(url)
-            xlsx(results, sheet)
-            progress_bar.update()
-
-        progress_bar.finish()
-
-    workbook.save('data.xlsx')
-
+async def run_async_main(file_path):
+    start_time = time.time()
+    connector = aiohttp.TCPConnector(limit=20)
+    async with aiohttp.ClientSession() as session:
+        global cookie
+        cookie = await beianx_cookie(session)
+        workbook, sheet = create_workbook()
+        await async_process_file(file_path, sheet, session)
+        workbook.save('data.xlsx')
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"脚本执行耗时：{elapsed_time:.2f} 秒")
 
 def print_icpscan_banner():
     print("=" * 70)
@@ -252,45 +296,19 @@ def print_icpscan_banner():
  \ \_\  \ \_____\  \ \_\    \/\_____\  \ \_____\  \ \_\ \_\  \ \_\\"\_\ 
   \/_/   \/_____/   \/_/     \/_____/   \/_____/   \/_/\/_/   \/_/ \/_/ 
 """)
-    print("\t\t\t\t\t\t\tVersion:0.5")
+    print("\t\t\t\t\t\t\tVersion:0.6")
     print("\t\t\t\t\t关注微信公众号:樱花庄的本间白猫")
     print("=" * 70)
     print("\t\tIcpScan开始执行")
 
-class ProgressBar:
-    def __init__(self, total):
-        self.total = total
-        self.current = 0
-
-    def update(self, increment=1):
-        self.current += increment
-        progress = (self.current / self.total) * 100
-        self._draw(progress)
-
-    def _draw(self, progress):
-        bar_length = 40
-        block = int(round(bar_length * progress / 100))
-        progress_bar = "=" * block + ">" + "." * (bar_length - block)
-        print(f"\r[{progress_bar}] {progress:.2f}%\t\t", end="", flush=True)
-
-    def finish(self):
-        print("\n处理完成。")
-
 def main():
-    global cookie  # 声明 cookie 为全局变量
-    start_time = time.time()  # 记录开始时间
     print_icpscan_banner()
     parser = argparse.ArgumentParser(description='ICPScan由本间白猫开发,旨在快速反查IP、域名归属')
     parser.add_argument('-f', '--file', help='指定使用的路径文件 -f url.txt')
-    parser.add_argument('-c', '--cookie', help='指定cookie值 -c your_cookie_value')
     args = parser.parse_args()
 
-    cookie = args.cookie
-    sheet = create_workbook()
-    process_file(args.file, sheet)
-    end_time = time.time()  # 记录结束时间
-    elapsed_time = end_time - start_time
-    print(f"脚本执行耗时：{elapsed_time:.2f} 秒")
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_async_main(args.file))
 
 if __name__ == "__main__":
     main()
