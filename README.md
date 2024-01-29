@@ -1,25 +1,38 @@
-### 工具介绍：
+# 开发起因
 
-开发本工具的主旨是批量对ip、域名资产查询备案信息，为大规模扫描提供帮助。 当前已支持循环测试域名，例如api.qq.baidu.com，可依次查询api.qq.baidu.com、qq.baidu.com、baidu.com的备案信息，为避免遗漏备案！ 该工具无需配置账号，到手即用，白嫖查询！
+在挖掘0day的过程中经常遭遇一件繁琐的事情，那就是挖到了0day、写好了批量验证脚本，但是苦于这些资产不知道归属，不知道权重，从而导致白白错过了数量客观的赏金。
 
-### 使用帮助：
+作者发现已有的开源工具，几乎都只能对提供的单一域名、固定域名进行查询，实际上无法遍历查询，则会导致遗漏大量站点，例如：api.neko.com.cn 常规工具在面对这条域名的时候，只会查询到 api.neko.com.cn ，这将导致备案查询错误，实际上是 neko.com.cn 才能查到归属，同时又因为 api.neko.com.cn 是api接口没什么访问量，导致权重很低甚至为0，而 neko.com.cn 的权重为6，从而导致遗漏。
 
-pip install -r requirements.txt安装必须的环境
+又因为无法对IP站点进行查询备案，或大批量进行查询而导致出现大量繁琐的工作，因此决定开发本工具。
 
-请根据自己的chrome版本下载对应驱动（版本没有完全一致也没事），将下载的驱动放置在icpscan.py的相同路径下
+# 工具功能
+
+1. 能够对IP、域名、IP:端口、域名:端口四类格式进行查询归属，无需主动分类
+2. 能够对IP类型的站点反查域名（目前获取IP的前10个域名）并查询归属
+3. 能够对多级域名遍历查询归属，不放过任何一个可能（后续将增加遍历查询权重功能）
+4. 能够生成表格文件方便查看结果
+5. 采用各种优化代码，大幅度优化查询速度
+6. 无需登录任何账号、获取任何Cookie
+
+# 使用帮助
+
+[在仓库中下载最新版本的工具](https://github.com/honmashironeko/icpscan/releases)
+
+请根据自己的chrome版本下载对应驱动（版本没有完全一致也没事），将下载的驱动放置在icpscan.py的相同路径下（请注意操作系统）
 
 [访问网站下载驱动](https://googlechromelabs.github.io/chrome-for-testing/)
 
-![image](https://github.com/honmashironeko/icpscan/assets/139044047/18aac337-1cdf-4f5b-b87b-78497f6c476c)
+![image-20240129154045942](https://github.com/honmashironeko/icpscan/assets/139044047/a11a7296-3956-4e79-947f-d7d65931b826)
 
 
-执行脚本方式：`python icpscan.py -f 文件名`  
+![image-20240129154118033](https://github.com/honmashironeko/icpscan/assets/139044047/512f4a11-072f-4692-a112-03d167bfe645)
 
-### 联系方式：
 
-![扫码_搜索联合传播样式-标准色版](https://private-user-images.githubusercontent.com/139044047/289717792-52ac67e6-1f73-424d-bf00-7d5e5aa5d23c.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MDQ3MDQwNjksIm5iZiI6MTcwNDcwMzc2OSwicGF0aCI6Ii8xMzkwNDQwNDcvMjg5NzE3NzkyLTUyYWM2N2U2LTFmNzMtNDI0ZC1iZjAwLTdkNWU1YWE1ZDIzYy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjQwMTA4JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI0MDEwOFQwODQ5MjlaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1lOTUwOGIxOGYxYzcyMTRiNzczZGQ0NzEwZWNjNzFhNjk2YzljOTc1NThiNTJmNmRkN2UxNmRjYzYzZjRkYzU4JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCZhY3Rvcl9pZD0wJmtleV9pZD0wJnJlcG9faWQ9MCJ9._2_PcfqIDtT60AtqHxdAbMvVGywNcjNjw1rKDrbfMe8)
+完成后就可以在cmd中执行：`python icpscan.py -f 文件名` 最后在相同路径下的文件夹查看Excel表格
 
-![image](https://private-user-images.githubusercontent.com/139044047/290764591-9b74a394-9daf-4834-b4aa-db2ff276e5ac.png?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MDQ3MDQwNjksIm5iZiI6MTcwNDcwMzc2OSwicGF0aCI6Ii8xMzkwNDQwNDcvMjkwNzY0NTkxLTliNzRhMzk0LTlkYWYtNDgzNC1iNGFhLWRiMmZmMjc2ZTVhYy5wbmc_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjQwMTA4JTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI0MDEwOFQwODQ5MjlaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT00MDgwZTgwZjMzZWU2ZTIzZmM1NjkxMWJiNjQ4OGIyNjc5YzhlYzA1OTg4YWM1MThmMjQ3M2I3M2ExMTMwN2E2JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCZhY3Rvcl9pZD0wJmtleV9pZD0wJnJlcG9faWQ9MCJ9.1CH2xIgYNn7ugqqP0ZHtYRduFcb_M8A8MVC0UGgeKDg)
+# 联系方式
 
-如果对本工具有建议或BUG反馈，请关注微信公众号：樱花庄的本间白猫，加入微信群反馈。
+关注微信公众号：**樱花庄的本间白猫**
 
+![樱花庄_搜索联合传播样式-标准色版](https://github.com/honmashironeko/icpscan/assets/139044047/444fffd7-f377-4a4f-9a5a-8c8ebf069dc7)
