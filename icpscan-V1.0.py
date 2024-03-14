@@ -84,7 +84,7 @@ async def fofa_async(b64, ip, retry_count=3):
     
 def get_icp_respons(domain, headers, data):
     url = "https://hlwicpfwc.miit.gov.cn/icpproject_query/api/icpAbbreviateInfo/queryByCondition"
-    response = requests.post(url, data=data, headers=headers,  verify=False)
+    response = requests.post(url, data=data,timeout=10, headers=headers,  verify=False)
     return response
 
 # 查询备案
@@ -235,6 +235,7 @@ async def main_async(file_path):
 
     token_get()
     processed_domains = set()
+    processed_domains2 = set()
     print("开始查询备案信息和域名权重")
     for ip, domain_list in domains.items():
         for domain in domain_list:
@@ -247,12 +248,14 @@ async def main_async(file_path):
                 beian = "该子域名备案同主域名"
             pc_rank = ' '
             pr_rank = ' '
-            pcrank, prrank = get_aizhan_rank(domaindj)
-            if pcrank is not None:
+            if domain not in processed_domains2:
+                pcrank, prrank = get_aizhan_rank(domaindj)
+                processed_domains2.add(domain)
                 pc_rank = pcrank
                 pr_rank = prrank
                 print(f"{domain} - 百度权重: {pc_rank} 谷歌权重: {pr_rank}")
-            df = pd.concat([df, pd.DataFrame({'IP地址': [ip], '域名': [domain], '备案信息': [beian], '百度权重': [pc_rank], '谷歌权重': [pr_rank]})], ignore_index=True)
+                df = pd.concat([df, pd.DataFrame({'IP地址': [ip], '域名': [domain], '备案信息': [beian], '百度权重': [pc_rank], '谷歌权重': [pr_rank]})], ignore_index=True)
+
     df.to_excel('domain_icp_info.xlsx', index=False)
 
 github_repo = "https://api.github.com/repos/honmashironeko/icpscan/releases/latest"
