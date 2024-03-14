@@ -1,7 +1,5 @@
-openpyxl
-requests
-tldextract
-urllib3
-aiohttp
-aiofiles
 selenium
+pandas
+tldextract
+requests
+aiohttp
