@@ -1,5 +1,0 @@
-selenium
-pandas
-tldextract
-requests
-aiohttp
