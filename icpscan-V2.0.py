@@ -128,7 +128,7 @@ def get_aizhan_rank(domaindj):
         print("爱站请求失败，请检查网络")
     return pcrank, prrank
 
-# 查询备案
+# 异步查询备案
 async def icp_async(session, domain):
     url = "https://api.uutool.cn/beian/icp/"
     headers = {
@@ -146,6 +146,25 @@ async def icp_async(session, domain):
                 return icp_result
         else:
             print("请求备案站点失败，请检查网络环境")
+
+# 查询备案
+def icp(domain):
+    url = "https://api.uutool.cn/beian/icp/"
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    data = "domain=" + domain
+    response = requests.post(url=url, headers=headers, data=data)
+    if response.status_code == 200:
+        match = response.json()
+        if "error" in match:
+            return "没有备案信息"
+        else:
+            icp_result = match['data']['icp_org']
+            return icp_result
+    else:
+        print("请求备案站点失败，请检查网络环境")
 
 # 备案查询模块
 async def beian_scan_async(domains, df):
@@ -174,7 +193,7 @@ def beian_and_rank_scan(domains,df):
         for domain in domain_list:
             domaindj = extract_domain(domain)
             if domaindj not in processed_domains:
-                beian = icp_async(domaindj)
+                beian = icp(domaindj)
                 processed_domains.add(domaindj)
                 print(f"{domaindj} {beian}")
             else:
