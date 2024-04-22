@@ -27,6 +27,12 @@
 
 如果需要查询备案的同时查询权重，可以增加-qz参数，请注意会大幅度降低查询速度。
 
+![Clip_2024-04-22_11-04-18](https://github.com/honmashironeko/icpscan/assets/139044047/729543cb-205b-4d97-a2b5-85b793ba88fd)
+
+![Clip_2024-04-22_11-11-56](https://github.com/honmashironeko/icpscan/assets/139044047/45ee0fc1-8938-463b-a30b-c6f91aa74476)
+
+
+
 # 联系方式
 
 关注微信公众号：**樱花庄的本间白猫**
