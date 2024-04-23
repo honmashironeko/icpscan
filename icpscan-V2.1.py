@@ -147,7 +147,7 @@ def icp(domain,proxyip):
     response = session.post(url, headers=headers, proxies=proxies, data=data)
     if response.status_code == 200:
         match = response.json()
-        if "icp_org" in match:
+        if "data" in match:
             icp_result = match['data']['icp_org']
             return icp_result
         if "请求频次过高" in match['error']:
