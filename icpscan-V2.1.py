@@ -238,7 +238,7 @@ async def main_async(file_path,zoomeye_auth,proxyip):
     df.to_excel('domain_icp_info.xlsx', index=False)
 
 def update_module():
-    icpscan_time = "2024-04-20"
+    icpscan_time = "2024-04-23"
     url = "https://y.shironekosan.cn/1.html"
     response = requests.get(url)
     pattern = r'<div\s+class="nc-light-gallery"\s+id="image_container">(.*?)</div>'
