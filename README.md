@@ -28,6 +28,7 @@ Github：https://github.com/honmashironeko/icpscan/releases
 
 ![Clip_2024-05-22_15-26-33](https://github.com/honmashironeko/icpscan/assets/139044047/747cfd32-fa61-4d40-8e55-3f28ff65d6fc)
 
+![Clip_2024-05-22_15-28-51](https://github.com/honmashironeko/icpscan/assets/139044047/36bd0d55-3ae4-4f17-a63d-c11d748f9424)
 
 
 # 联系方式
