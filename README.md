@@ -23,11 +23,13 @@ Github：https://github.com/honmashironeko/icpscan/releases
 
 # 使用截图
 
-![Clip_2024-05-22_15-03-15](./assets/Clip_2024-05-22_15-03-15.png)
+![image](https://github.com/honmashironeko/icpscan/assets/139044047/414e4c64-118f-4acb-b27b-e430cab97347)
+
 
 # 联系方式
 
-![樱花庄_搜索联合传播样式-标准色版](./assets/%E6%A8%B1%E8%8A%B1%E5%BA%84_%E6%90%9C%E7%B4%A2%E8%81%94%E5%90%88%E4%BC%A0%E6%92%AD%E6%A0%B7%E5%BC%8F-%E6%A0%87%E5%87%86%E8%89%B2%E7%89%88.png)
+![樱花庄_搜索联合传播样式-标准色版](https://github.com/honmashironeko/icpscan/assets/139044047/b044db99-e4fc-4d82-8289-d7b4f27374ee)
+
 
 # 特别鸣谢
 
