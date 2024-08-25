@@ -9,14 +9,26 @@ import argparse
 import requests
 import logging
 import aiohttp
+import sqlite3
 import base64
 import time
 import ssl
 import re
+import os
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 ssl._create_default_https_context = ssl._create_unverified_context
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+if not os.path.exists('domain_info.db'):
+    # 创建文件并写入占位数据
+    conn = sqlite3.connect('domain_info.db')
+    cursor = conn.cursor()
+    cursor.execute('CREATE TABLE domain_info (domaindj TEXT, ip TEXT, beian TEXT)')
+    cursor.execute('INSERT INTO domain_info (domaindj, ip, beian) VALUES (?,?,?)', ('占位数据', '占位数据', '占位数据'))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 # 提取一级域名
 def extract_domain(domain):
@@ -67,16 +79,18 @@ def fofa_api(b64,ip):
             logging.error(f"FOFA请求失败！错误码: {response.status_code} - {ip}")
     except requests.exceptions.RequestException as e:
         logging.error(f"FOFA请求失败: {e} - {ip}")
+        with open('error.txt', 'a') as f:
+            f.write(f"{ip}\n")
 # Zoomeye查询
 def zoomeye(ip, auth):
-    url = f"https://api.zoomeye.org/web/search?query=ip%3A%22{ip}%22&page=1"
+    url = f"https://api.zoomeye.org/web/search?query=ip:\"{ip}\"&page=1&t=web"
     headers = {"API-KEY": auth}
     for _ in range(3):
         try:
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.text
-                results = re.findall(r"'site': '(.*?)'", str(data))
+                results = re.findall(r'"site": "(.*?)"', str(data))
                 print(f"ZoomEye查询完毕 IP: {ip}")
                 return results, ip
             else:
@@ -129,6 +143,10 @@ def icp_beian(domain, proxyip=None):
         return {"信息": "请求备案站点失败，请检查网络环境"}
 # 备案查询模块
 def beian_query(domains):
+    conn = sqlite3.connect('domain_info.db')
+    cursor = conn.cursor()
+    cursor.execute('CREATE TABLE IF NOT EXISTS domain_info (domaindj TEXT, ip TEXT, beian TEXT)')
+
     processed_domains = set()
     domains_jg = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=5):
@@ -138,16 +156,34 @@ def beian_query(domains):
                 if domaindj not in processed_domains:
                     try:
                         beian = icp_beian(domaindj)
+                        cursor.execute('INSERT INTO domain_info (domaindj, ip, beian) VALUES (?,?,?)', (domaindj, ip, beian))
+                        conn.commit()
                         domains_jg[domaindj] = ip, beian
                         print(f"{domaindj}\t\t{beian}")
                     except Exception as e:
                         logging.error(f"备案查询过程中发生异常：{e}")
                     processed_domains.add(domaindj)
+    cursor.close()
+    conn.close()
     return domains_jg
+
+def load_sql_data():
+    conn = sqlite3.connect('domain_info.db')
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT domaindj, ip, beian FROM domain_info')
+    data = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return data
 
 def main(file_path, zoomeye_auth):
     domains = {}
     df = pd.DataFrame(columns=['IP地址', '域名', '备案信息'])
+    sql_data = load_sql_data()
+
     try:
         with open(file_path, 'r') as f:
             listdomain = f.read().splitlines()
@@ -176,6 +212,12 @@ def main(file_path, zoomeye_auth):
                         domains[ip] = extracted_domains
                 except:
                     pass
+
+    for row in sql_data:
+        domaindj, ip, beian = row
+        if domaindj in domains:
+            domains.pop(domaindj)
+            df = pd.concat([df, pd.DataFrame({'IP地址': [ip], '域名': [domaindj], '备案信息': [beian]})], ignore_index=True)
     
     print("\n开始查询备案信息\n")
     domain_info = beian_query(domains)
@@ -235,7 +277,7 @@ if __name__ == "__main__":
     print_icpscan_banner()
     parser = argparse.ArgumentParser(description='ICPScan由本间白猫开发,旨在快速反查IP、域名归属')
     parser.add_argument('-f', dest='file_path', required=True, help='指定使用的路径文件 -f url.txt')
-    parser.add_argument('-key', dest='fofa_key',required=True, help='指定FOFA的API-KEY认证信息 -key API-KEY')
+    parser.add_argument('-key', dest='fofa_key',help='指定FOFA的API-KEY认证信息 -key API-KEY')
     parser.add_argument('-zkey', dest='zoomeye_auth', help='指定ZoomEye的API-KEY认证信息 -zkey API-KEY')
     args = parser.parse_args()
     file_path = args.file_path
